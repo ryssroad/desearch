@@ -85,8 +85,8 @@ class AdvancedScraperValidator:
         self.region = "us"
         self.date_filter = "qdr:w"  # Past week
 
-        self.synthetic_history = []
         self.organic_query_state = OrganicQueryState()
+
         # Init device.
         bt.logging.debug("loading", "device")
         bt.logging.debug(
@@ -174,6 +174,7 @@ class AdvancedScraperValidator:
         response_order=ResponseOrder.SUMMARY_FIRST,
         model: Optional[Model] = Model.NOVA,
         result_type: Optional[ResultType] = ResultType.LINKS_WITH_SUMMARIES,
+        is_synthetic=False,
     ):
         max_execution_time = get_max_execution_time(model)
 
@@ -209,6 +210,7 @@ class AdvancedScraperValidator:
                 response_order=response_order.value,
                 max_execution_time=max_execution_time,
                 result_type=result_type,
+                is_synthetic=is_synthetic,
             )
             for task in tasks
         ]
@@ -490,50 +492,24 @@ class AdvancedScraperValidator:
                 region=self.region,
                 google_date_filter=self.date_filter,
                 model=random_model,
+                is_synthetic=True,
             )
 
             final_synapses = await collect_final_synapses(
                 async_responses, uids, start_time, max_execution_time
             )
 
-            # Store final synapses for scoring later
-            self.synthetic_history.append(
-                (event, tasks, final_synapses, uids, start_time)
+            await self.compute_rewards_and_penalties(
+                event=event,
+                tasks=tasks,
+                responses=final_synapses,
+                uids=uids,
+                start_time=start_time,
+                is_synthetic=True,
             )
-
-            await self.score_random_synthetic_query()
-
         except Exception as e:
             bt.logging.error(f"Error in query_and_score: {e}")
             raise e
-
-    async def score_random_synthetic_query(self):
-        # Collect synthetic queries and score randomly
-        synthetic_queries_collection_size = 2
-
-        if len(self.synthetic_history) < synthetic_queries_collection_size:
-            bt.logging.info(
-                f"Skipping scoring random synthetic query as history length is {len(self.synthetic_history)}"
-            )
-
-            return
-
-        event, tasks, final_synapses, uids, start_time = random.choice(
-            self.synthetic_history
-        )
-
-        bt.logging.info(f"Scoring random synthetic query: {event}")
-
-        await self.compute_rewards_and_penalties(
-            event=event,
-            tasks=tasks,
-            responses=final_synapses,
-            uids=uids,
-            start_time=start_time,
-            is_synthetic=True,
-        )
-
-        self.synthetic_history = []
 
     async def organic(
         self,

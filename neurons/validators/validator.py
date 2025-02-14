@@ -1,3 +1,4 @@
+import random
 import torch
 import wandb
 import asyncio
@@ -573,10 +574,13 @@ class Neuron(AbstractNeuron):
                             )
                             await asyncio.sleep(10)
                             continue
-                        self.loop.create_task(self.run_synthetic_queries(strategy))
-                        self.loop.create_task(
-                            self.run_basic_synthetic_queries(strategy)
-                        )
+
+                        if random.choice([True, False]):
+                            self.loop.create_task(self.run_synthetic_queries(strategy))
+                        else:
+                            self.loop.create_task(
+                                self.run_basic_synthetic_queries(strategy)
+                            )
 
                         await asyncio.sleep(interval)  # Wait for synthetic interval
                     except Exception as e:
