@@ -295,7 +295,7 @@ class Neuron(AbstractNeuron):
             #     )
             # )
         except Exception as e:
-            bt.logging.error(f"Error in update_scores: {e}")
+            bt.logging.error(f"Error in update_scores_for_basic: {e}")
             raise e
 
     def update_moving_averaged_scores(self, uids, rewards):
@@ -494,19 +494,22 @@ class Neuron(AbstractNeuron):
         await self.sync_metagraph()
 
         while True:
-            blocks_left = self.blocks_until_next_epoch()
+            try:
+                blocks_left = self.blocks_until_next_epoch()
 
-            bt.logging.debug(f"Blocks left until next epoch: {blocks_left}")
+                bt.logging.warning(f"Blocks left until next epoch: {blocks_left}")
 
-            if blocks_left <= 20 and self.should_set_weights():
-                weight_set_start_time = time.time()
-                bt.logging.info("Setting weights as per condition.")
-                await self.run_sync_in_async(lambda: set_weights(self))
-                weight_set_end_time = time.time()
-                bt.logging.info(
-                    f"Weight setting execution time: {weight_set_end_time - weight_set_start_time:.2f} seconds"
-                )
-                await asyncio.sleep(300)
+                if blocks_left <= 20 and self.should_set_weights():
+                    weight_set_start_time = time.time()
+                    bt.logging.info("Setting weights as per condition.")
+                    await self.run_sync_in_async(lambda: set_weights(self))
+                    weight_set_end_time = time.time()
+                    bt.logging.info(
+                        f"Weight setting execution time: {weight_set_end_time - weight_set_start_time:.2f} seconds"
+                    )
+                    await asyncio.sleep(300)
+            except Exception as e:
+                bt.logging.error(f"Error in validator sync: {e}")
 
             await asyncio.sleep(60)
 
