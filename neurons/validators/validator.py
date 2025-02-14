@@ -330,23 +330,21 @@ class Neuron(AbstractNeuron):
             bt.logging.error(f"Error in update_moving_averaged_scores: {e}")
             raise e
 
-    async def query_synapse(self, strategy=QUERY_MINERS.RANDOM):
+    async def query_synapse(self, strategy):
         try:
-            # self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
             await self.advanced_scraper_validator.query_and_score(strategy)
         except Exception as e:
             bt.logging.error(f"General exception: {e}\n{traceback.format_exc()}")
             await asyncio.sleep(100)
 
-    async def basic_query_synapse(self, strategy=QUERY_MINERS.RANDOM):
+    async def basic_query_synapse(self, strategy):
         try:
-            # self.metagraph = self.subtensor.metagraph(netuid=self.config.netuid)
             await self.basic_scraper_validator.query_and_score_twitter_basic(strategy)
         except Exception as e:
             bt.logging.error(f"General exception: {e}\n{traceback.format_exc()}")
             await asyncio.sleep(100)
 
-    async def run_synthetic_queries(self, strategy=QUERY_MINERS.RANDOM):
+    async def run_synthetic_queries(self, strategy):
         bt.logging.info(f"Starting run_synthetic_queries with strategy={strategy}")
         total_start_time = time.time()
 
@@ -387,7 +385,7 @@ class Neuron(AbstractNeuron):
                 f"Total execution time for run_synthetic_queries: {total_execution_time:.2f} minutes"
             )
 
-    async def run_basic_synthetic_queries(self, strategy=QUERY_MINERS.RANDOM):
+    async def run_basic_synthetic_queries(self, strategy):
         bt.logging.info(
             f"Starting run_basic_synthetic_queries with strategy={strategy}"
         )

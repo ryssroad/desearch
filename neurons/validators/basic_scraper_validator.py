@@ -390,7 +390,7 @@ class BasicScraperValidator:
 
         return params
 
-    async def query_and_score_twitter_basic(self, strategy=QUERY_MINERS.RANDOM):
+    async def query_and_score_twitter_basic(self, strategy):
         try:
             if not len(self.neuron.available_uids):
                 bt.logging.info(

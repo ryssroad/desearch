@@ -446,7 +446,7 @@ class AdvancedScraperValidator:
 
         bt.logging.debug("Run Task event:", event)
 
-    async def query_and_score(self, strategy=QUERY_MINERS.RANDOM):
+    async def query_and_score(self, strategy):
         try:
 
             if not len(self.neuron.available_uids):
