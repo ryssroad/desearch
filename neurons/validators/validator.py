@@ -10,9 +10,7 @@ import datura.utils as utils
 import os
 import time
 import sys
-from typing import List
-import substrateinterface
-from datura.protocol import IsAlive, Model
+from datura.protocol import IsAlive
 from neurons.validators.advanced_scraper_validator import AdvancedScraperValidator
 from neurons.validators.basic_scraper_validator import BasicScraperValidator
 from config import add_args, check_config, config
@@ -484,9 +482,8 @@ class Neuron(AbstractNeuron):
             pass
 
     def blocks_until_next_epoch(self):
-        node = substrateinterface.SubstrateInterface(self.subtensor.chain_endpoint)
-        current_block = node.query("System", "Number", []).value
-        tempo = node.query("SubtensorModule", "Tempo", [self.config.netuid]).value
+        current_block = self.subtensor.get_current_block()
+        tempo = self.subtensor.tempo(self.config.netuid, current_block)
 
         return tempo - (current_block + self.config.netuid + 1) % (tempo + 1)
 
