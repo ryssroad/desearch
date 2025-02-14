@@ -349,23 +349,21 @@ class Neuron(AbstractNeuron):
     async def run_synthetic_queries(self, strategy=QUERY_MINERS.RANDOM):
         bt.logging.info(f"Starting run_synthetic_queries with strategy={strategy}")
         total_start_time = time.time()
+
         try:
+            start_time = time.time()
 
-            async def run_forward():
-                start_time = time.time()
-                bt.logging.info(
-                    f"Running step forward for query_synapse, Step: {self.step}"
-                )
-                coroutines = [self.query_synapse(strategy) for _ in range(1)]
-                await asyncio.gather(*coroutines)
-                end_time = time.time()
-                bt.logging.info(
-                    f"Completed gathering coroutines for query_synapse in {end_time - start_time:.2f} seconds"
-                )
+            bt.logging.info(
+                f"Running step forward for query_synapse, Step: {self.step}"
+            )
 
-            bt.logging.info("Running coroutines with run_until_complete")
-            self.loop.run_until_complete(run_forward())
-            bt.logging.info("Completed running coroutines with run_until_complete")
+            await asyncio.gather(*[self.query_synapse(strategy) for _ in range(1)])
+
+            end_time = time.time()
+
+            bt.logging.info(
+                f"Completed gathering coroutines for query_synapse in {end_time - start_time:.2f} seconds"
+            )
 
             sync_start_time = time.time()
             bt.logging.info("Calling sync metagraph method")
@@ -394,23 +392,23 @@ class Neuron(AbstractNeuron):
             f"Starting run_basic_synthetic_queries with strategy={strategy}"
         )
         total_start_time = time.time()
+
         try:
+            start_time = time.time()
 
-            async def run_forward():
-                start_time = time.time()
-                bt.logging.info(
-                    f"Running step forward for basic_query_synapse, Step: {self.step}"
-                )
-                coroutines = [self.basic_query_synapse(strategy) for _ in range(1)]
-                await asyncio.gather(*coroutines)
-                end_time = time.time()
-                bt.logging.info(
-                    f"Completed gathering coroutines for basic_query_synapse in {end_time - start_time:.2f} seconds"
-                )
+            bt.logging.info(
+                f"Running step forward for basic_query_synapse, Step: {self.step}"
+            )
 
-            bt.logging.info("Running coroutines with run_until_complete")
-            self.loop.run_until_complete(run_forward())
-            bt.logging.info("Completed running coroutines with run_until_complete")
+            await asyncio.gather(
+                *[self.basic_query_synapse(strategy) for _ in range(1)]
+            )
+
+            end_time = time.time()
+
+            bt.logging.info(
+                f"Completed gathering coroutines for basic_query_synapse in {end_time - start_time:.2f} seconds"
+            )
 
             sync_start_time = time.time()
             bt.logging.info("Calling sync metagraph method")
