@@ -3,11 +3,8 @@ import wandb
 import asyncio
 import concurrent
 import traceback
-import random
 import copy
 import bittensor as bt
-import datura.utils as utils
-import os
 import time
 import sys
 from datura.protocol import IsAlive
@@ -25,7 +22,6 @@ from datura.utils import (
     save_logs_in_chunks_for_basic,
 )
 from neurons.validators.proxy.uid_manager import UIDManager
-from typing import Optional
 
 
 class Neuron(AbstractNeuron):
@@ -45,6 +41,8 @@ class Neuron(AbstractNeuron):
     wallet: "bt.wallet"
     metagraph: "bt.metagraph"
     dendrite: "bt.dendrite"
+
+    loop: asyncio.AbstractEventLoop
 
     advanced_scraper_validator: "AdvancedScraperValidator"
     basic_scraper_validator: "BasicScraperValidator"
@@ -73,8 +71,6 @@ class Neuron(AbstractNeuron):
         self.basic_scraper_validator = BasicScraperValidator(neuron=self)
         bt.logging.info("initialized_validators")
 
-        # Init the event loop.
-        self.loop = asyncio.get_event_loop()
         self.step = 0
         self.check_registered()
 
@@ -563,6 +559,8 @@ class Neuron(AbstractNeuron):
         return True  # Update right not based on interval of synthetic data
 
     async def run(self):
+        self.loop = asyncio.get_event_loop()
+
         self.loop.create_task(self.sync())
         self.loop.create_task(self.update_available_uids_periodically())
         bt.logging.info(f"Validator starting at block: {self.block}")
@@ -579,7 +577,6 @@ class Neuron(AbstractNeuron):
                             )
                             await asyncio.sleep(10)
                             continue
-                        # TODO fix recv error
                         self.loop.create_task(self.run_synthetic_queries(strategy))
                         self.loop.create_task(
                             self.run_basic_synthetic_queries(strategy)
