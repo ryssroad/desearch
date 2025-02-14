@@ -497,7 +497,7 @@ class Neuron(AbstractNeuron):
             try:
                 blocks_left = self.blocks_until_next_epoch()
 
-                bt.logging.warning(f"Blocks left until next epoch: {blocks_left}")
+                bt.logging.debug(f"Blocks left until next epoch: {blocks_left}")
 
                 if blocks_left <= 20 and self.should_set_weights():
                     weight_set_start_time = time.time()
