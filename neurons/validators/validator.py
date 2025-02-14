@@ -3,16 +3,11 @@ import wandb
 import asyncio
 import concurrent
 import traceback
-import random
 import copy
 import bittensor as bt
-import datura.utils as utils
-import os
 import time
 import sys
-from typing import List
-import substrateinterface
-from datura.protocol import IsAlive, Model
+from datura.protocol import IsAlive
 from neurons.validators.advanced_scraper_validator import AdvancedScraperValidator
 from neurons.validators.basic_scraper_validator import BasicScraperValidator
 from config import add_args, check_config, config
@@ -27,7 +22,6 @@ from datura.utils import (
     save_logs_in_chunks_for_basic,
 )
 from neurons.validators.proxy.uid_manager import UIDManager
-from typing import Optional
 
 
 class Neuron(AbstractNeuron):
@@ -47,6 +41,8 @@ class Neuron(AbstractNeuron):
     wallet: "bt.wallet"
     metagraph: "bt.metagraph"
     dendrite: "bt.dendrite"
+
+    loop: asyncio.AbstractEventLoop
 
     advanced_scraper_validator: "AdvancedScraperValidator"
     basic_scraper_validator: "BasicScraperValidator"
@@ -75,8 +71,6 @@ class Neuron(AbstractNeuron):
         self.basic_scraper_validator = BasicScraperValidator(neuron=self)
         bt.logging.info("initialized_validators")
 
-        # Init the event loop.
-        self.loop = asyncio.get_event_loop()
         self.step = 0
         self.check_registered()
 
@@ -355,23 +349,21 @@ class Neuron(AbstractNeuron):
     async def run_synthetic_queries(self, strategy=QUERY_MINERS.RANDOM):
         bt.logging.info(f"Starting run_synthetic_queries with strategy={strategy}")
         total_start_time = time.time()
+
         try:
+            start_time = time.time()
 
-            async def run_forward():
-                start_time = time.time()
-                bt.logging.info(
-                    f"Running step forward for query_synapse, Step: {self.step}"
-                )
-                coroutines = [self.query_synapse(strategy) for _ in range(1)]
-                await asyncio.gather(*coroutines)
-                end_time = time.time()
-                bt.logging.info(
-                    f"Completed gathering coroutines for query_synapse in {end_time - start_time:.2f} seconds"
-                )
+            bt.logging.info(
+                f"Running step forward for query_synapse, Step: {self.step}"
+            )
 
-            bt.logging.info("Running coroutines with run_until_complete")
-            self.loop.run_until_complete(run_forward())
-            bt.logging.info("Completed running coroutines with run_until_complete")
+            await asyncio.gather(*[self.query_synapse(strategy) for _ in range(1)])
+
+            end_time = time.time()
+
+            bt.logging.info(
+                f"Completed gathering coroutines for query_synapse in {end_time - start_time:.2f} seconds"
+            )
 
             sync_start_time = time.time()
             bt.logging.info("Calling sync metagraph method")
@@ -400,23 +392,23 @@ class Neuron(AbstractNeuron):
             f"Starting run_basic_synthetic_queries with strategy={strategy}"
         )
         total_start_time = time.time()
+
         try:
+            start_time = time.time()
 
-            async def run_forward():
-                start_time = time.time()
-                bt.logging.info(
-                    f"Running step forward for basic_query_synapse, Step: {self.step}"
-                )
-                coroutines = [self.basic_query_synapse(strategy) for _ in range(1)]
-                await asyncio.gather(*coroutines)
-                end_time = time.time()
-                bt.logging.info(
-                    f"Completed gathering coroutines for basic_query_synapse in {end_time - start_time:.2f} seconds"
-                )
+            bt.logging.info(
+                f"Running step forward for basic_query_synapse, Step: {self.step}"
+            )
 
-            bt.logging.info("Running coroutines with run_until_complete")
-            self.loop.run_until_complete(run_forward())
-            bt.logging.info("Completed running coroutines with run_until_complete")
+            await asyncio.gather(
+                *[self.basic_query_synapse(strategy) for _ in range(1)]
+            )
+
+            end_time = time.time()
+
+            bt.logging.info(
+                f"Completed gathering coroutines for basic_query_synapse in {end_time - start_time:.2f} seconds"
+            )
 
             sync_start_time = time.time()
             bt.logging.info("Calling sync metagraph method")
@@ -484,9 +476,8 @@ class Neuron(AbstractNeuron):
             pass
 
     def blocks_until_next_epoch(self):
-        node = substrateinterface.SubstrateInterface(self.subtensor.chain_endpoint)
-        current_block = node.query("System", "Number", []).value
-        tempo = node.query("SubtensorModule", "Tempo", [self.config.netuid]).value
+        current_block = self.subtensor.get_current_block()
+        tempo = self.subtensor.tempo(self.config.netuid, current_block)
 
         return tempo - (current_block + self.config.netuid + 1) % (tempo + 1)
 
@@ -566,6 +557,8 @@ class Neuron(AbstractNeuron):
         return True  # Update right not based on interval of synthetic data
 
     async def run(self):
+        self.loop = asyncio.get_event_loop()
+
         self.loop.create_task(self.sync())
         self.loop.create_task(self.update_available_uids_periodically())
         bt.logging.info(f"Validator starting at block: {self.block}")
@@ -582,7 +575,6 @@ class Neuron(AbstractNeuron):
                             )
                             await asyncio.sleep(10)
                             continue
-                        # TODO fix recv error
                         self.loop.create_task(self.run_synthetic_queries(strategy))
                         self.loop.create_task(
                             self.run_basic_synthetic_queries(strategy)
