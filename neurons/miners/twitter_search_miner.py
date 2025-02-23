@@ -6,151 +6,140 @@ from datura.protocol import (
     TwitterScraperTweet,
     TwitterScraperUser,
 )
+from datura.services.rapidapi_twitter_wrapper import RapidAPITwitterClient
 from pydantic import ValidationError
-
 
 class TwitterSearchMiner:
     def __init__(self, miner: any):
         self.miner = miner
+        self.twitter_client = RapidAPITwitterClient()
 
-    def _generate_mock_tweet(self, **kwargs):
-        """
-        Generate a mock tweet using the TwitterScraperTweet class to ensure proper formatting.
-
-        Parameters:
-            **kwargs: Fields to override in the default mock tweet.
-
-        Returns:
-            dict: Formatted mock tweet as a dictionary.
-        """
+    def _convert_rapidapi_to_scraper_tweet(self, tweet_data: dict) -> dict:
+        """Convert RapidAPI tweet format to TwitterScraperTweet format"""
+        user_data = tweet_data.get("user", {})
+        
         try:
-            mock_tweet = TwitterScraperTweet(
-                user=TwitterScraperUser(
-                    id="id",
-                    username="mock_user",
-                    name="Mock user",
-                    url="https://x.com/mock_user",
-                    description="This is a mock user for testing purposes.",
-                    location="Tbilisi",
-                    verified=True,
-                    is_blue_verified=True,
-                    can_dm=True,
-                    can_media_tag=True,
-                    followers_count=1000,
-                    media_count=1000,
-                    favourites_count=1000,
-                    listed_count=1000,
-                    statuses_count=1000,
-                    created_at="Wed Jun 05 18:30:32 +0000 2024",
-                    entities=[],
-                    profile_image_url="https://x.com/mock_user/profile_image",
-                    profile_banner_url="https://x.com/mock_user/profile_banner.jpg",
-                    pinned_tweet_ids=[],
-                ),
-                id="123456789",
-                text="This is a mock tweet for testing purposes.",
-                reply_count=10,
-                retweet_count=5,
-                like_count=50,
-                quote_count=1,
-                bookmark_count=2,
-                url="https://x.com/mock_user/status/123456789",
-                created_at="Wed Jun 05 18:30:32 +0000 2024",
-                media=[],
-                is_quote_tweet=False,
-                is_retweet=False,
-                conversation_id="123456789",
-                in_reply_to_screen_name=None,
-                in_reply_to_user_id=None,
-                in_reply_to_status_id=None,
-                display_text_range=[0, 50],
+            user = TwitterScraperUser(
+                id=user_data.get("id_str", ""),
+                username=user_data.get("screen_name", ""),
+                name=user_data.get("name", ""),
+                url=f"https://x.com/{user_data.get('screen_name', '')}",
+                description=user_data.get("description", ""),
+                location=user_data.get("location", ""),
+                verified=user_data.get("verified", False),
+                is_blue_verified=user_data.get("verified", False),
+                followers_count=user_data.get("followers_count", 0),
+                media_count=user_data.get("media_count", 0),
+                favourites_count=user_data.get("favourites_count", 0),
+                listed_count=user_data.get("listed_count", 0),
+                statuses_count=user_data.get("statuses_count", 0),
+                created_at=user_data.get("created_at", ""),
+                profile_image_url=user_data.get("profile_image_url", ""),
+                profile_banner_url=user_data.get("profile_banner_url", ""),
                 entities=[],
-                extended_entities=[],
-                lang="en",
-                quote=None,
-                quoted_status_id=None,
-                **kwargs,  # Override any fields with provided values
+                pinned_tweet_ids=[],
+                can_dm=True,
+                can_media_tag=True
             )
-            return mock_tweet.dict()
+            
+            tweet = TwitterScraperTweet(
+                user=user,
+                id=tweet_data.get("id_str", ""),
+                text=tweet_data.get("text", ""),
+                reply_count=tweet_data.get("reply_count", 0),
+                retweet_count=tweet_data.get("retweet_count", 0),
+                like_count=tweet_data.get("favorite_count", 0),
+                quote_count=tweet_data.get("quote_count", 0),
+                bookmark_count=0,
+                url=f"https://x.com/{user_data.get('screen_name', '')}/status/{tweet_data.get('id_str', '')}",
+                created_at=tweet_data.get("created_at", ""),
+                media=[],
+                is_quote_tweet=tweet_data.get("is_quote_status", False),
+                is_retweet=bool(tweet_data.get("retweeted_status", False)),
+                conversation_id=tweet_data.get("conversation_id_str", ""),
+                in_reply_to_screen_name=tweet_data.get("in_reply_to_screen_name"),
+                in_reply_to_user_id=tweet_data.get("in_reply_to_user_id_str"),
+                in_reply_to_status_id=tweet_data.get("in_reply_to_status_id_str"),
+                display_text_range=[0, len(tweet_data.get("text", ""))],
+                entities=tweet_data.get("entities", []),
+                extended_entities=tweet_data.get("extended_entities", []),
+                lang=tweet_data.get("lang", "en"),
+                quote=None,
+                quoted_status_id=tweet_data.get("quoted_status_id_str")
+            )
+            
+            return tweet.dict()
         except ValidationError as e:
-            bt.logging.error(f"Validation error while creating mock tweet: {e}")
+            bt.logging.error(f"Validation error while converting tweet: {e}")
             raise
 
     async def search(self, synapse: TwitterSearchSynapse):
-        # Extract the query parameters from the synapse
+        """Execute Twitter search using RapidAPI"""
         query = synapse.query
         search_params = {
-            "sort": synapse.sort,
-            "start_date": synapse.start_date,
-            "end_date": synapse.end_date,
+            "query": query,
             "lang": synapse.lang,
-            "verified": synapse.verified,
-            "blue_verified": synapse.blue_verified,
-            "is_quote": synapse.is_quote,
-            "is_video": synapse.is_video,
-            "is_image": synapse.is_image,
-            "min_retweets": synapse.min_retweets,
-            "min_replies": synapse.min_replies,
-            "min_likes": synapse.min_likes,
+            "max_results": 10,  # Adjust as needed
         }
 
-        # Log query and search parameters
-        bt.logging.info(
-            f"Executing mock search with query: {query} and params: {search_params}"
-        )
+        bt.logging.info(f"Executing search with query: {query} and params: {search_params}")
 
-        # Generate a mock tweet
-        mock_tweet = self._generate_mock_tweet()
+        try:
+            response_data, status_code, _ = await self.twitter_client.get_recent_tweets(search_params)
+            
+            if response_data and "data" in response_data:
+                # Convert tweets to TwitterScraperTweet format
+                synapse.results = [
+                    self._convert_rapidapi_to_scraper_tweet(tweet)
+                    for tweet in response_data["data"]
+                ]
+            else:
+                synapse.results = []
+                
+        except Exception as e:
+            bt.logging.error(f"Error during Twitter search: {e}")
+            synapse.results = []
 
-        # Assign the mock tweet to the results field of the synapse
-        synapse.results = [mock_tweet]
-
-        bt.logging.info(f"Here is the final synapse: {synapse}")
         return synapse
 
     async def search_by_id(self, synapse: TwitterIDSearchSynapse):
-        """
-        Perform a Twitter search based on a specific tweet ID.
-        """
+        """Search for a tweet by ID using RapidAPI"""
         tweet_id = synapse.id
-
-        # Log the search operation
         bt.logging.info(f"Searching for tweet by ID: {tweet_id}")
 
-        # Generate a mock tweet
-        mock_tweet = self._generate_mock_tweet(
-            id=tweet_id, text=f"This is a mock tweet for ID: {tweet_id}"
-        )
-
-        # Assign the mock tweet to the results field of the synapse
-        synapse.results = [mock_tweet]
+        try:
+            tweet_data = await self.twitter_client.get_tweet_by_id(tweet_id)
+            
+            if tweet_data and "data" in tweet_data:
+                # Convert tweet to TwitterScraperTweet format
+                synapse.results = [self._convert_rapidapi_to_scraper_tweet(tweet_data["data"])]
+            else:
+                synapse.results = []
+                
+        except Exception as e:
+            bt.logging.error(f"Error during tweet ID search: {e}")
+            synapse.results = []
 
         return synapse
 
     async def search_by_urls(self, synapse: TwitterURLsSearchSynapse):
-        """
-        Perform a Twitter search based on multiple tweet URLs.
-
-        Parameters:
-            synapse (TwitterURLsSearchSynapse): Contains the list of tweet URLs.
-
-        Returns:
-            TwitterURLsSearchSynapse: The synapse with fetched tweets in the results field.
-        """
+        """Search for tweets by URLs using RapidAPI"""
         urls = synapse.urls
-
-        # Log the search operation
         bt.logging.info(f"Searching for tweets by URLs: {urls}")
 
-        # Generate mock tweets for each URL
-        mock_results = [
-            self._generate_mock_tweet(
-                url=url, text=f"This is a mock tweet for the URL: {url}"
-            )
-            for url in urls
-        ]
+        results = []
+        for url in urls:
+            try:
+                # Extract tweet ID from URL
+                tweet_id = url.split("/status/")[-1].split("?")[0]
+                tweet_data = await self.twitter_client.get_tweet_by_id(tweet_id)
+                
+                if tweet_data and "data" in tweet_data:
+                    results.append(self._convert_rapidapi_to_scraper_tweet(tweet_data["data"]))
+                    
+            except Exception as e:
+                bt.logging.error(f"Error processing URL {url}: {e}")
+                continue
 
-        # Assign the mock tweets to the results field of the synapse
-        synapse.results = mock_results
-
+        synapse.results = results
         return synapse
